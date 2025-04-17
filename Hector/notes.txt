@@ -1,0 +1,13 @@
+need to install ntlk 
+++
+import nltk
+nltk.download('punkt_tab')
+nltk.download('averaged_perceptron_tagger_eng')
+++
+
+
+need to install gensim
+need to get the two gloves files  and put the path
+
+
+No save available ATM
