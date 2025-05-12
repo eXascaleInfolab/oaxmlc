@@ -33,10 +33,10 @@ def print_config(cfg):
     print(f"> Config")
     for key, value in cfg.items():
         if key in ['paths', 'tasks_size', 'task_to_subroot', 'label_to_tasks']: continue
-        if key == 'tamlec_params':
+        if key == 'hector_params':
             for subkey, val in value.items():
-                if subkey in ['abstract_dict', 'trg_vocab', 'src_vocab', 'taxos_hector', 'taxos_tamlec']: continue
-                print(f">> tamlec_{subkey}: {val}")
+                if subkey in ['abstract_dict', 'trg_vocab', 'src_vocab', 'taxos_hector']: continue
+                print(f">> hector_{subkey}: {val}")
         else:
             print(f">> {key}: {value}")
     print()
@@ -119,27 +119,6 @@ def compute_n_docs(output_path, dataloaders):
             for task, my_dict in n_docs[split].items():
                 f.write(f"Task {task} -> {my_dict}\n")
             f.write('\n')
-
-
-# Draw the taxonomy of a given task and dataset
-def draw_tasks(taxos_tamlec, output_path, dataset_name):
-    print(f"> Draw tasks...")
-    for task_id in range(len(taxos_tamlec)):
-        root_node = taxos_tamlec[task_id][0]
-        # Construct edge list of the graph
-        all_edges = []
-        for parent, children in taxos_tamlec[task_id][1].items():
-            for child in children:
-                all_edges.append((parent, child))
-
-        # Create the graph, draw and save it
-        G = nx.DiGraph()
-        G.add_edges_from(all_edges)
-        pos = semilattice_pos(G, root_node)
-        plt.figure(figsize=(16,9))
-        nx.draw(G, pos=pos, with_labels=True, node_size=900, node_color='red', linewidths=3)
-        plt.savefig(output_path / f"{dataset_name}_task{task_id}.png")
-        plt.close()
 
 
 # Draw a semi-lattice in a pretty way with networkx
@@ -284,7 +263,6 @@ class EarlyStopping:
             'xmlcnn': 5,
             'attentionxml': 5,
             'hector': 5,
-            'tamlec': 5,
             'lightxml': 5,
             'cascadexml': 5,
         }
@@ -314,7 +292,7 @@ class EarlyStopping:
         return True
 
     def _save_model(self, new_model):
-        if self.cfg['method'] in ['hector', 'tamlec', 'attentionxml']:
+        if self.cfg['method'] in ['hector', 'attentionxml']:
             torch.save(new_model, self.cfg['paths']['model'])
         else:
             torch.save(copy.deepcopy(new_model.state_dict()), self.cfg['paths']['state_dict'])

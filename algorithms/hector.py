@@ -23,16 +23,16 @@ class HectorExp:
         self.dataloaders = load_data(self.cfg)
         print(f"> Loading model...")
         self.model = Hector(
-            src_vocab=self.cfg['tamlec_params']['src_vocab'],
-            tgt_vocab=self.cfg['tamlec_params']['trg_vocab'],
+            src_vocab=self.cfg['hector_params']['src_vocab'],
+            tgt_vocab=self.cfg['hector_params']['trg_vocab'],
             path_to_glove=".vector_cache/glove.840B.300d.gensim",
-            abstract_dict=self.cfg['tamlec_params']['abstract_dict'],
-            taxonomies=self.cfg['tamlec_params']['taxos_hector'],
-            width_adaptive=self.cfg['tamlec_params']['width_adaptive'],
-            decoder_adaptative=self.cfg['tamlec_params']['decoder_adaptative'],
-            tasks_size=self.cfg['tamlec_params']['tasks_size'],
+            abstract_dict=self.cfg['hector_params']['abstract_dict'],
+            taxonomies=self.cfg['hector_params']['taxos_hector'],
+            width_adaptive=self.cfg['hector_params']['width_adaptive'],
+            decoder_adaptative=self.cfg['hector_params']['decoder_adaptative'],
+            tasks_size=self.cfg['hector_params']['tasks_size'],
             gpu_target=self.cfg['device'],
-            with_bias=self.cfg['tamlec_params']['with_bias'],
+            with_bias=self.cfg['hector_params']['with_bias'],
             Number_src_blocs=6,
             Number_tgt_blocs=6,
             dim_src_embedding=300,
@@ -46,9 +46,8 @@ class HectorExp:
             epsilon=1e-8,
             weight_decay=0.01,
             gamma=.99998,
-            accum_iter=self.cfg['tamlec_params']['accum_iter'],
-            # 0.0 < x <= 0.1
-            loss_smoothing=self.cfg['tamlec_params']['loss_smoothing'],
+            accum_iter=self.cfg['hector_params']['accum_iter'],
+            loss_smoothing=self.cfg['hector_params']['loss_smoothing'],
             max_padding_document=self.cfg['seq_length'],
             max_number_of_labels=20,
         )

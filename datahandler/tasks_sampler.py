@@ -35,8 +35,8 @@ class SubtreeSampler(Sampler):
         collate_fastxml(input_data):
             Collates data for FastXML, transforming inputs into sparse matrices and grouping labels.
 
-        collate_hector_tamlec(seed=None):
-            Generates a closure for Hector/Tamlec collation, creating mini-batches while maintaining taxonomy-specific constraints.
+        collate_hector(seed=None):
+            Generates a closure for Hector collation, creating mini-batches while maintaining taxonomy-specific constraints.
     """
 
     def __init__(self, dataset, cfg, batch_size):
@@ -146,9 +146,9 @@ class SubtreeSampler(Sampler):
         )
 
 
-    def collate_hector_tamlec(self, seed=None):
-        def _collate_hector_tamlec(input_data):
-            """Collate function for Hector and Tamlec. The seed can be defined in the closure so that in training we have random batches while in evaluation we have always the same batches.
+    def collate_hector(self, seed=None):
+        def _collate_hector(input_data):
+            """Collate function for Hector. The seed can be defined in the closure so that in training we have random batches while in evaluation we have always the same batches.
 
             Args:
                 input_data (list): A list of one tuple containing four elements:
@@ -180,28 +180,18 @@ class SubtreeSampler(Sampler):
             # Create batched input and labels
             batched_input = []
             batched_labels = []
-            if self.cfg['method'] == 'tamlec':
-                for batch in batches_indices:
-                    # Use slicing since document_data is a tensor
-                    batched_input.append(document_data[batch])
-                    # Labels: keep all labels appearing in the sub-tree (root included since tamlec requires the start of the path)
-                    labels_batch = []
-                    for idx in batch:
-                        labels_batch.append([self.cfg['task_to_subroot'][task_id]] + [lab for lab in labels_data[idx] if lab in column_indices])
-                    batched_labels.append(labels_batch)
-            else:
-                for batch in batches_indices:
-                    # Use slicing since document_data is a tensor
-                    batched_input.append(document_data[batch])
-                    # Labels: keep root of the taxonomy and of the sub-tree (since hector requires the start of the path)
-                    labels_batch = []
-                    for idx in batch:
-                        labels_batch.append([0] + [self.cfg['task_to_subroot'][task_id]] + [lab for lab in labels_data[idx] if lab in column_indices])
-                    batched_labels.append(labels_batch)
+            for batch in batches_indices:
+                # Use slicing since document_data is a tensor
+                batched_input.append(document_data[batch])
+                # Labels: keep root of the taxonomy and of the sub-tree (since hector requires the start of the path)
+                labels_batch = []
+                for idx in batch:
+                    labels_batch.append([0] + [self.cfg['task_to_subroot'][task_id]] + [lab for lab in labels_data[idx] if lab in column_indices])
+                batched_labels.append(labels_batch)
 
             return (
                 batched_input,
                 batched_labels,
                 column_indices,
             )
-        return _collate_hector_tamlec
+        return _collate_hector

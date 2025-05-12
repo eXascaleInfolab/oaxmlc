@@ -21,34 +21,25 @@ model_name = {
     'xmlcnn': 'xmlcnn',
     'attentionxml': 'attentionxml',
     'hector': 'hector',
-    'tamlec': 'hector',
     'fastxml': 'fastxml',
     'lightxml': 'match',
     'cascadexml':'match',
     'parabel': 'parabel',
 }
 
-# Batch size for hector and tamlec
+# Batch size for hector
 batch_size = {
     'hector': {
-        'oatopics': 64,
-        'oaconcepts': 20,
-    },
-    'tamlec': {
-        'oatopics': 64,
-        'oaconcepts': 40,
+        'oaxmlc_topics': 64,
+        'oaxmlc_concepts': 20,
     },
 }
 
-# Number of accumulations for hector and tamlec
+# Number of accumulations for hector
 accum_iter = {
     'hector': {
-        'oatopics': 5,
-        'oaconcepts': 2,
-    },
-    'tamlec': {
-        'oatopics': 5,
-        'oaconcepts': 2,
+        'oaxmlc_topics': 5,
+        'oaxmlc_concepts': 2,
     },
 }
 
@@ -58,7 +49,6 @@ patience = {
     'xmlcnn': 5,
     'attentionxml': 5,
     'hector': 3,
-    'tamlec': 3,
     'fastxml': None,
     'lightxml': 5,
     'cascadexml': 5,
@@ -67,8 +57,7 @@ patience = {
 
 # Specific threshold for the positives/negatives in the metrics
 thresholds = {
-    'oatopics': {
-        'tamlec': 0.309,
+    'oaxmlc_topics': {
         'hector': 0.179,
         'attentionxml': 0.342,
         'xmlcnn': 0.309,
@@ -78,8 +67,7 @@ thresholds = {
         'cascadexml': 0.305,
         'parabel': 0.336,
     },
-    'oaconcepts': {
-        'tamlec': 0.424,
+    'oaxmlc_concepts': {
         'hector': 0.061,
         'attentionxml': 0.36,
         'xmlcnn': 0.316,
@@ -96,7 +84,7 @@ class Experiment:
     def __init__(self, cfg):
         self.cfg = cfg
 
-        assert self.cfg['method'] in ['match', 'xmlcnn', 'attentionxml', 'hector', 'tamlec', 'fastxml', 'lightxml', 'cascadexml', 'parabel'], f"{self.cfg['method']} not available, choose in ['match', 'xmlcnn', 'attentionxml', 'hector', 'tamlec', 'fastxml', 'lightxml', 'cascadexml', 'parabel']"
+        assert self.cfg['method'] in ['match', 'xmlcnn', 'attentionxml', 'hector', 'fastxml', 'lightxml', 'cascadexml', 'parabel'], f"{self.cfg['method']} not available, choose in ['match', 'xmlcnn', 'attentionxml', 'hector', 'fastxml', 'lightxml', 'cascadexml', 'parabel']"
 
         # Create all paths
         # Output path set for the experiment
@@ -124,8 +112,6 @@ class Experiment:
             'preprocessed_data': preprocessed_data_path,
             # Data for hector
             'taxos_hector': preprocessed_data_path / 'taxos_hector.pt',
-            # Data for tamlec
-            'taxos_tamlec': preprocessed_data_path / 'taxos_tamlec.pt',
             # Miscellaneous data
             'taxonomy': preprocessed_data_path / 'taxonomy.pt',
             'embeddings': preprocessed_data_path / 'embeddings.pt',
@@ -164,6 +150,7 @@ class Experiment:
         self.cfg['all_tasks_key'] = 'global'
         self.cfg['model_name'] = model_name[self.cfg['method']]
         self.cfg['dataset'] = self.cfg['paths']['dataset'].name
+        assert ('oaxmlc_topics' in self.cfg['dataset']) or ('oaxmlc_concepts' in self.cfg['dataset']), f"Dataset folder name should be 'oaxmlc_topics' or 'oaxmlc_concepts'"
         try:
             self.cfg['threshold'] = thresholds[self.cfg['dataset']][self.cfg['method']]
         except KeyError:
@@ -172,10 +159,10 @@ class Experiment:
         # Training loss function, optimizer and batch sizes
         self.cfg['loss_function'] = torch.nn.BCELoss()
         self.cfg['optimizer'] = torch.optim.AdamW
-        if self.cfg['method'] in ['hector', 'tamlec']:
-            self.cfg['batch_size_train'] = batch_size[self.cfg['method']][self.cfg['dataset']]
-            self.cfg['batch_size_eval'] = batch_size[self.cfg['method']][self.cfg['dataset']]
-            self.cfg['tamlec_params']['accum_iter'] = accum_iter[self.cfg['method']][self.cfg['dataset']]
+        if self.cfg['method'] in ['hector']:
+            self.cfg['batch_size_train'] = batch_size[self.cfg['method']].get(self.cfg['dataset'], 64)
+            self.cfg['batch_size_eval'] = batch_size[self.cfg['method']].get(self.cfg['dataset'], 64)
+            self.cfg['hector_params']['accum_iter'] = accum_iter[self.cfg['method']].get(self.cfg['dataset'], 5)
         else:
             self.cfg['batch_size_train'] = 64
             self.cfg['batch_size_eval'] = 256
@@ -183,12 +170,11 @@ class Experiment:
 
         # For hector setup default parameters
         if self.cfg['method'] == 'hector':
-            self.cfg['tamlec_params']['width_adaptive'] = False
-            self.cfg['tamlec_params']['decoder_adaptative'] = 0
-            self.cfg['tamlec_params']['tasks_size'] = False
-            self.cfg['tamlec_params']['width_adaptive'] = False
-            self.cfg['tamlec_params']['freeze'] = False
-            self.cfg['tamlec_params']['with_bias'] = False
+            self.cfg['hector_params']['width_adaptive'] = False
+            self.cfg['hector_params']['decoder_adaptative'] = 0
+            self.cfg['hector_params']['tasks_size'] = None
+            self.cfg['hector_params']['freeze'] = False
+            self.cfg['hector_params']['with_bias'] = False
 
         assert self.cfg['tokenization_mode'] in ['word', 'bpe', 'unigram'], f"{self.cfg['tokenization_mode']} should be ['word', 'bpe', 'unigram']"
 
@@ -214,11 +200,6 @@ class Experiment:
             from algorithms.hector import HectorExp
             print_time(f"Starting HECTOR experiment")
             experiment = HectorExp(self.cfg)
-            experiment.run()
-        elif self.cfg['method'] == 'tamlec':
-            from algorithms.tamlec import TamlecExp
-            print_time(f"Starting TAMLEC experiment")
-            experiment = TamlecExp(self.cfg)
             experiment.run()
         elif self.cfg['method'] == 'fastxml':
             from algorithms.fastxml import FastxmlExp

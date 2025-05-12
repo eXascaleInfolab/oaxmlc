@@ -7,12 +7,13 @@ from pathlib import Path
 from misc.experiment import Experiment
 
 cfg = {
+    # Make sure to name the folder 'oaxmlc_topics' or 'oaxmlc_concepts'
     'dataset_path': Path("datasets/oaxmlc_topics"),
 	'output_path': Path("output"),
 	# Experiment name, do not change
     'exp_name': Path(__file__),
     'device': 'cuda:0',
-	# ['match', 'xmlcnn', 'attentionxml', 'fastxml', 'hector', 'tamlec', 'lightxml', 'cascadexml', 'parabel']
+	# ['match', 'xmlcnn', 'attentionxml', 'fastxml', 'hector', 'lightxml', 'cascadexml', 'parabel']
     'method': 'match',
     'learning_rate': 5e-5,
     # Length of the input sequences
@@ -25,15 +26,9 @@ cfg = {
     'k_list': list(range(1, 21)),
     # While training only, not final evaluation, to speed up metrics computation
     'k_list_eval_perf': [1,2,3,5],
-    # Parameters specific to TAMLEC
-    'tamlec_params': {
+    # Parameters specific to HECTOR
+    'hector_params': {
         'loss_smoothing': 1e-2,
-        # These parameters cannot be modified for hector and will be defaulted afterwards
-        'width_adaptive': True,
-        'decoder_adaptative': 1,
-        'tasks_size': True,
-        'freeze': True,
-        'with_bias': True,
     },
 }
 

@@ -51,10 +51,9 @@ def load_data(cfg):
 
     # Check if data is already pre-processed
     condition1 = cfg['paths']['taxos_hector'].is_file()
-    condition2 = cfg['paths']['taxos_tamlec'].is_file()
-    condition3 = cfg['paths']['global_datasets'].is_file()
+    condition2 = cfg['paths']['global_datasets'].is_file()
 
-    if not (condition1 and condition2 and condition3):
+    if not (condition1 and condition2):
         cfg['taxonomy'] = Taxonomy()
         cfg['taxonomy'].load_taxonomy(cfg)
         print(f"> Loading and pre-processing of the data...")
@@ -87,10 +86,10 @@ def load_data(cfg):
                         # Add the labels
                         ids_labels = []
                         # Depends on the dataset
-                        if cfg['dataset'] == 'oatopics':
+                        if cfg['dataset'] == 'oaxmlc_topics':
                             for label in data['topics_labels']:
                                 ids_labels.append(label)
-                        elif cfg['dataset'] == 'oaconcepts':
+                        elif cfg['dataset'] == 'oaxmlc_concepts':
                             for label in data['concepts_labels']:
                                 ids_labels.append(label)
                         else:
@@ -114,12 +113,11 @@ def load_data(cfg):
         embeddings = emb_handler.get_glove_embeddings(vocabulary, special_embs=True)
 
         # Save data
-        # Data for hector and tamlec
-        torch.save(cfg['tamlec_params']['src_vocab'], cfg['paths']['src_vocab'])
-        torch.save(cfg['tamlec_params']['trg_vocab'], cfg['paths']['trg_vocab'])
-        torch.save(cfg['tamlec_params']['abstract_dict'], cfg['paths']['abstract_dict'])
-        torch.save(cfg['tamlec_params']['taxos_hector'], cfg['paths']['taxos_hector'])
-        torch.save(cfg['tamlec_params']['taxos_tamlec'], cfg['paths']['taxos_tamlec'])
+        # Data for hector
+        torch.save(cfg['hector_params']['src_vocab'], cfg['paths']['src_vocab'])
+        torch.save(cfg['hector_params']['trg_vocab'], cfg['paths']['trg_vocab'])
+        torch.save(cfg['hector_params']['abstract_dict'], cfg['paths']['abstract_dict'])
+        torch.save(cfg['hector_params']['taxos_hector'], cfg['paths']['taxos_hector'])
         # Data for all algorithms
         torch.save(cfg['taxonomy'], cfg['paths']['taxonomy'])
         torch.save(embeddings, cfg['paths']['embeddings'])
@@ -130,22 +128,20 @@ def load_data(cfg):
         torch.save((tasks_indices, tasks_relevant_labels), cfg['paths']['tasks_datasets'])
         # Save global indices
         torch.save((global_indices, global_relevant_labels), cfg['paths']['global_datasets'])
-        # Draw the tasks of the dataset
-        utils.draw_tasks(cfg['tamlec_params']['taxos_tamlec'], cfg['paths']['drawn_tasks'], cfg['dataset'])
 
     # Load already pre-processed datasets
     else:
         print(f"> Found pre-processed data, load it...")
-        if cfg['method'] in ['hector', 'tamlec']:
-            # Data for hector and tamlec
+        if cfg['method'] in ['hector']:
+            # Data for hector
             with open(cfg['paths']['src_vocab'], 'rb') as f:
-                cfg['tamlec_params']['src_vocab'] = torch.load(f)
+                cfg['hector_params']['src_vocab'] = torch.load(f)
             with open(cfg['paths']['trg_vocab'], 'rb') as f:
-                cfg['tamlec_params']['trg_vocab'] = torch.load(f)
+                cfg['hector_params']['trg_vocab'] = torch.load(f)
             with open(cfg['paths']['abstract_dict'], 'rb') as f:
-                cfg['tamlec_params']['abstract_dict'] = torch.load(f)
+                cfg['hector_params']['abstract_dict'] = torch.load(f)
             with open(cfg['paths'][f"taxos_{cfg['method']}"], 'rb') as f:
-                cfg['tamlec_params'][f"taxos_{cfg['method']}"] = torch.load(f)
+                cfg['hector_params'][f"taxos_{cfg['method']}"] = torch.load(f)
         # Data for all algorithms
         with open(cfg['paths']['global_datasets'], 'rb') as f:
             global_indices, global_relevant_labels = torch.load(f)
@@ -163,13 +159,10 @@ def load_data(cfg):
             cfg['label_to_tasks'] = torch.load(f)
 
     # Tasks lengths for HECTOR
-    if cfg['tamlec_params']['tasks_size']:
-        cfg['tamlec_params']['tasks_size'] = cfg['tasks_size']
-    else:
-        cfg['tamlec_params']['tasks_size'] = None
+    cfg['hector_params']['tasks_size'] = None
 
-    # hector, tamlec, fastxml and parabel require integer labels, other algorithms one-hot labels
-    one_hot_labels = cfg['method'] not in ['hector', 'tamlec', 'fastxml', 'parabel']
+    # hector, fastxml and parabel require integer labels, other algorithms one-hot labels
+    one_hot_labels = cfg['method'] not in ['hector', 'fastxml', 'parabel']
 
     # Get the tasks datasets and dataloader
     tasks_train_set = datasets.TasksDataset(tasks_indices['train'], tasks_relevant_labels, one_hot_labels, cfg)
@@ -181,14 +174,14 @@ def load_data(cfg):
     val_sampler = SubtreeSampler(tasks_val_set, cfg=cfg, batch_size=cfg['batch_size_eval'])
     test_sampler = SubtreeSampler(tasks_test_set, cfg=cfg, batch_size=cfg['batch_size_eval'])
 
-    # Special collate function for hector and tamlec
-    if cfg['method'] in ['hector', 'tamlec']:
+    # Special collate function for hector
+    if cfg['method'] in ['hector']:
         resampled_train_set = datasets.ResampledTasksDataset(tasks_indices['train'], tasks_relevant_labels, cfg)
         new_sampler = SubtreeSampler(resampled_train_set, cfg=cfg, batch_size=cfg['batch_size_train'])
-        tasks_train_loader = DataLoader(resampled_train_set, sampler=new_sampler, collate_fn=new_sampler.collate_hector_tamlec(seed=None))
+        tasks_train_loader = DataLoader(resampled_train_set, sampler=new_sampler, collate_fn=new_sampler.collate_hector(seed=None))
         # Seed is fixed for validation and test sets to have always the same batches, which is not the case for training
-        tasks_val_loader = DataLoader(tasks_val_set, sampler=val_sampler, collate_fn=val_sampler.collate_hector_tamlec(seed=16))
-        tasks_test_loader = DataLoader(tasks_test_set, sampler=test_sampler, collate_fn=test_sampler.collate_hector_tamlec(seed=16))
+        tasks_val_loader = DataLoader(tasks_val_set, sampler=val_sampler, collate_fn=val_sampler.collate_hector(seed=16))
+        tasks_test_loader = DataLoader(tasks_test_set, sampler=test_sampler, collate_fn=test_sampler.collate_hector(seed=16))
     # Special collate function for fastxml and parabel
     elif cfg['method'] in ['fastxml', 'parabel']:
         tasks_train_loader = DataLoader(tasks_train_set, sampler=train_sampler, collate_fn=train_sampler.collate_no_batch)
@@ -295,8 +288,8 @@ def tokenization(texts, cfg):
     # Will be used to get the embeddings
     vocabulary = list(word_to_idx.keys())
 
-    # Source vocab for hector and tamlec
-    cfg['tamlec_params']['src_vocab'] = tvoc.vocab(word_to_idx, min_freq=0)
+    # Source vocab for hector
+    cfg['hector_params']['src_vocab'] = tvoc.vocab(word_to_idx, min_freq=0)
 
     return texts_tokenized, vocabulary
 
@@ -442,31 +435,22 @@ def data_split(documents, labels_data, cfg):
     print(f">> Now {np.mean([len(items) for items in items_per_label.values()])} documents per label")
     print(f">> Now {np.mean([len(labels) for labels in labels_per_idx.values()])} labels per document")
 
-    # Construct specific data for hector and tamlec
+    # Construct specific data for hector
     # Target vocab, deepcopy to have another reference in memory
     voc_plus_pad = copy.deepcopy(taxonomy.label_to_idx)
     voc_plus_pad['<pad>'] = len(taxonomy.label_to_idx)
-    cfg['tamlec_params']['trg_vocab'] = tvoc.vocab(voc_plus_pad, min_freq=0)
+    cfg['hector_params']['trg_vocab'] = tvoc.vocab(voc_plus_pad, min_freq=0)
     # Taxonomy for hector is full taxonomy
     taxo_id_root = taxonomy.label_to_idx['root']
     children = {taxo_id_root: [taxonomy.label_to_idx[node] for node in taxonomy.label_to_children['root']]}
     for curr_node in taxonomy.all_children('root'):
         if not taxonomy.is_leaf(curr_node):
             children[taxonomy.label_to_idx[curr_node]] = [taxonomy.label_to_idx[node] for node in taxonomy.label_to_children[curr_node]]
-    cfg['tamlec_params']['taxos_hector'] = [(taxo_id_root, children)]
-    # Taxonomies for tamlec are taxonomies of selected sub-trees
-    cfg['tamlec_params']['taxos_tamlec'] = []
-    for subtree_root in subtrees_to_keep:
-        taxo_id_root = taxonomy.label_to_idx[subtree_root]
-        children = {taxo_id_root: [taxonomy.label_to_idx[node] for node in taxonomy.label_to_children[subtree_root]]}
-        for curr_node in taxonomy.all_children(subtree_root):
-            if not taxonomy.is_leaf(curr_node):
-                children[taxonomy.label_to_idx[curr_node]] = [taxonomy.label_to_idx[node] for node in taxonomy.label_to_children[curr_node]]
-        cfg['tamlec_params']['taxos_tamlec'].append((taxo_id_root, children))
+    cfg['hector_params']['taxos_hector'] = [(taxo_id_root, children)]
     # Abstract dict
-    cfg['tamlec_params']['abstract_dict'] = {}
+    cfg['hector_params']['abstract_dict'] = {}
     for label, abstract in taxonomy.label_to_abstract.items():
-        cfg['tamlec_params']['abstract_dict'][taxonomy.label_to_idx[label]] = abstract
+        cfg['hector_params']['abstract_dict'][taxonomy.label_to_idx[label]] = abstract
 
     print(f">> Constructing the labels...")
     final_labels = []

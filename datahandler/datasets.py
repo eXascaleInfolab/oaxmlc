@@ -64,7 +64,7 @@ class TasksDataset(Dataset):
 
 
 class ResampledTasksDataset(Dataset):
-    """Dataset used with tasks being sub-trees in the taxonomy. Tasks are resampled until a specific number of elements, this if for Tamlec and Hector to have a complete batch during training."""
+    """Dataset used with tasks being sub-trees in the taxonomy. Tasks are resampled until a specific number of elements, this is for Hector to have a complete batch during training."""
 
     def __init__(self, indices, relevant_labels, cfg):
         """Constructor for TasksDataset class.
@@ -96,8 +96,8 @@ class ResampledTasksDataset(Dataset):
 
             new_task_files = copy.deepcopy(task_files)
             # Resampling if a task is too small to have at least batch_size * accum_iter elements
-            if len(task_files) < self.batch_size * self.cfg['tamlec_params']['accum_iter']:
-                indices_to_add = self.rng.choice(len(task_files), size=self.batch_size*self.cfg['tamlec_params']['accum_iter']-len(task_files), replace=True)
+            if len(task_files) < self.batch_size * self.cfg['hector_params']['accum_iter']:
+                indices_to_add = self.rng.choice(len(task_files), size=self.batch_size*self.cfg['hector_params']['accum_iter']-len(task_files), replace=True)
                 for idx in indices_to_add:
                     new_task_files.append(task_files[idx])
 
