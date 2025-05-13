@@ -18,7 +18,7 @@ class EncoderDecoder(nn.Module):
     A standard Encoder-Decoder architecture. Base for this and many
     other models.
     """
-    def __init__(self, encoder, decoder, decoders_custom : list, src_embed, tgt_embed, generators : list, adapter):
+    def __init__(self, encoder, decoder, src_embed, tgt_embed, generators : list, adapter,**kwargs):
         super(EncoderDecoder, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
