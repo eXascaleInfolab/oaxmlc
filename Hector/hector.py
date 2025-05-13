@@ -37,19 +37,19 @@ class Hector() :
         
         print("Building Taxonomy")
         assert len(taxonomies)==1, "Invalid input, taxonomies should be a list of size 1"
+        tax= taxonomies[0]
         all_label_tokens = sorted(list(tgt_vocab.get_stoi().values()))
 
 
         self.hector_forest = []
 
-        widths_collection = None
 
-        with taxonomies[0] as tax:
-            root, children_dict = tax
-            h = HecTree(root_label=root,children_dict=children_dict, all_tokens=all_label_tokens)
-            self.hector_forest.append(h)
-            max_level = h.get_max_level()
-            h.set_max_level(max_level)
+        
+        root, children_dict = tax
+        h = HecTree(root_label=root,children_dict=children_dict, all_tokens=all_label_tokens)
+        self.hector_forest.append(h)
+        max_level = h.get_max_level()
+        h.set_max_level(max_level)
 
 
 
