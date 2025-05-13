@@ -2,8 +2,9 @@
 
 This repository contains the code to run the baselines of the benchmarking of the OAXMLC dataset.
 
-To download the OAXMLC dataset and read the detailed documentation, we refer the reader to the [Zenodo repository page of the dataset](https://doi.org/10.5281/zenodo.15120226).
+To download the OAXMLC dataset and read the detailed documentation, we refer the reader to the Zenodo repository page of the dataset:
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15120226.svg)](https://doi.org/10.5281/zenodo.15120226)
 
 The files `ontology.json`, `taxonomy.txt` and `documents.json`, downloaded from Zenodo, need to be located under a common folder (`datasets/oaxmlc_topics` or `datasets/oaxmlc_concepts`), to run baselines on the dataset with the specific taxonomy. This will make it easier to choose the taxonomy from the `dataset_path` option (see the [config section](#config-options) below), and so that the code runs without ambiguity.
 
