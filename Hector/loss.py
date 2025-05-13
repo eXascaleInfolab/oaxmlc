@@ -18,7 +18,7 @@ class MLabelSmoothing(nn.Module):
         self.true_dist = None
         
 
-    def forward(self, x, target, level_mask, coef_width = None):
+    def forward(self, x, target, level_mask,**kwargs):
         """
         :param x: model predictions (batch_size*(max_padding_tgt - 1) x |label_vocab|)
         :param target: true labels (batch_size*(max_padding_tgt - 1) x |real_labels|)
@@ -29,9 +29,7 @@ class MLabelSmoothing(nn.Module):
 
         true_dist = self.generate_true_dist(x, target, level_mask)
         self.true_dist = true_dist
-        if coef_width is not None :
-            max_x = 1-self.smoothing/coef_width
-            x = torch.minimum(x, max_x*torch.ones_like(x))
+       
             
         
 
@@ -58,15 +56,13 @@ class MLabelSmoothing(nn.Module):
 
 class SimpleLossCompute:
     "Generate predictions and compute loss."
-    def __init__(self, criterion, widths = None, weights = None):
+    def __init__(self, criterion, **kwargs):
         """
         :param criterion: loss function
         """
         self.criterion = criterion
-        self.widths = widths
-        self.weights = weights
 
-    def __call__(self, x, y, norm, level_mask, task_id = None):
+    def __call__(self, x, y, norm, level_mask, **kwargs):
         """
         :param x: decoder output (batch_size x (max_padding_tgt - 1) x d_model)
         :param y: target (batch_size x (max_padding_tgt - 1))
@@ -78,16 +74,12 @@ class SimpleLossCompute:
         level_mask = level_mask.contiguous().view(-1, level_mask.size(-1))
         y = y 
 
-        coef_width = None
-        if (self.widths is not None) :
-            if task_id is not None : coef_width = self.widths[task_id]
 
-        sloss = self.criterion(x, y,level_mask, coef_width) / norm
-        if self.weights is not None :  coef = self.weights[task_id]
-        else : coef = 1
-            
 
-        return sloss.data * norm, sloss*coef
+        sloss = self.criterion(x, y,level_mask) / norm
+  
+
+        return sloss.data * norm, sloss
 
 
 class CustomPrecisionLoss:

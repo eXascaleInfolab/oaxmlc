@@ -17,11 +17,11 @@ class GradientClipper(object):
 
         self.queue = deque([start_value], maxlen=queue_length)
 
-    def clip_gradient(self, model, task_id = 0):
+    def clip_gradient(self, model, **kwargs):
         max_norm = max(self.queue)
 
-        if self.weights is None : clip_value = self.clip_value
-        else : clip_value = self.clip_value * self.weights[task_id]
+        clip_value = self.clip_value
+        
 
         total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm * clip_value)
         self.queue.append(min(total_norm, max_norm * self.increase_factor, self.start_value))

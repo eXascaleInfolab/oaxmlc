@@ -19,10 +19,7 @@ import Hector.config as Cf
 
 class Hector() : 
 
-    def __init__(self, src_vocab, tgt_vocab, path_to_glove, abstract_dict, taxonomies, 
-                 width_adaptive = False, # new param, with true activate the width_adaptive loss
-                 decoder_adaptative = 0, # new param, number of decoding layers that are adapted to the task. 0 for no additional adaptation
-                 tasks_size = None, # new param, list of the size of the training set of each task, to adapt the loss. 
+    def __init__(self, src_vocab, tgt_vocab, path_to_glove, abstract_dict, taxonomies,  
                  gpu_target  = 0,
                  #adaptive_patience,
                  Number_src_blocs = 6, Number_tgt_blocs = 6, dim_src_embedding = 300,
@@ -31,37 +28,34 @@ class Hector() :
                   accum_iter = 20, loss_smoothing = 0.01,
                   max_padding_document = 128, max_number_of_labels = 20,
                   with_bias = False,
+                  **kwargs
                 ) -> None:
 
 
         self._model :EncoderDecoder= None
 
         
-        print("Building Taxonomies")
-        n_task = len(taxonomies)
+        print("Building Taxonomy")
+        assert len(taxonomies)==1, "Invalid input, taxonomies should be a list of size 1"
         all_label_tokens = sorted(list(tgt_vocab.get_stoi().values()))
 
 
         self.hector_forest = []
 
-        max_level = 0
+        widths_collection = None
 
-        widths_collection = []
-
-        for tax in taxonomies :
+        with taxonomies[0] as tax:
             root, children_dict = tax
             h = HecTree(root_label=root,children_dict=children_dict, all_tokens=all_label_tokens)
             self.hector_forest.append(h)
-            lvl = h.get_max_level()
-            max_level = max(max_level,lvl)
-            widths_collection.append(h.get_width())
+            max_level = h.get_max_level()
+            h.set_max_level(max_level)
 
-        if not width_adaptive : widths_collection = None
+
 
         self._max_level = max_level
 
-        for h in self.hector_forest :
-            h.set_max_level(max_level)
+
 
         self._src_vocab = src_vocab
         self._tgt_vocab = tgt_vocab
@@ -86,8 +80,7 @@ class Hector() :
 
         self._init_model(src_vocab, tgt_vocab, N_src = Number_src_blocs, N_tgt = Number_tgt_blocs, d_src=dim_src_embedding,
                           d_tgt = dim_tgt_embedding, d_ff = dim_feed_forward, h = number_of_heads, dropout = dropout,
-                            emb_src_init = emb_src_init, emb_tgt_init = emb_tgt_init, lvl_mask= None, n_tasks = n_task,
-                            N_custom_target=decoder_adaptative, with_bias=with_bias)
+                            emb_src_init = emb_src_init, emb_tgt_init = emb_tgt_init, with_bias=with_bias)
         
 
         self._gpu_target = gpu_target
@@ -116,13 +109,7 @@ class Hector() :
         self.get_optimizer()
         
         
-
-        if tasks_size is None :
-            weights = None 
-        else : 
-            mweight = max(tasks_size)
-            weights = [ mweight /w for w in tasks_size  ]
-        self._clippy = GradientClipper(start_value=1. * accum_iter, weights = weights)
+        self._clippy = GradientClipper(start_value=1. * accum_iter, weights = None)
 
 
         self.criterion = MLabelSmoothing(
@@ -134,7 +121,7 @@ class Hector() :
         if gpu_target is not None : 
             self.criterion.cuda(gpu_target)
 
-        self.loss_function = SimpleLossCompute(self.criterion,widths = widths_collection, weights = weights)
+        self.loss_function = SimpleLossCompute(self.criterion,widths = None, weights = None)
 
         self._metric = CustomPrecisionLoss(index_pady=self._pad_tgt, nprec=[1,2,3,4,5,10,20])
 
@@ -167,23 +154,22 @@ class Hector() :
 
 
     def _init_model(self,src_vocab, tgt_vocab, N_src, N_tgt, d_src, d_tgt, d_ff, h, dropout, emb_src_init=None, emb_tgt_init=None,
-                     lvl_mask=None, n_tasks=1, N_custom_target = 0, with_bias = False):
+                     with_bias = False,**kwargs):
 
         self._model = make_model(src_vocab, tgt_vocab, N_src, N_tgt, d_src, d_tgt, d_ff, h, dropout, emb_src_init,
-                                  emb_tgt_init, lvl_mask, n_tasks, N_custom_target=N_custom_target,
-                                  with_bias=with_bias)
+                                  emb_tgt_init, with_bias=with_bias)
 
     
-    def _forward(self,  src, tgt, src_mask, tgt_mask, child_mask, task_id):
+    def _forward(self,  src, tgt, src_mask, tgt_mask, child_mask, **kwargs):
 
-        return self._model.forward(src, tgt, src_mask, tgt_mask, child_mask, task_id)
+        return self._model.forward(src, tgt, src_mask, tgt_mask, child_mask)
     
 
 
 
-    def _prepare_all_paths(self, labels, task_id):
+    def _prepare_all_paths(self, labels):
         labs = [l for l in labels if l!= self._pad_tgt]
-        output = self.hector_forest[task_id].labels_to_paths(labs)
+        output = self.hector_forest[0].labels_to_paths(labs)
 
         processed_output = []
 
@@ -201,7 +187,7 @@ class Hector() :
 
 
 
-    def _prepare_batch(self, documents_tokens, labels_tokens,task_id ):  # 0 = <blank>
+    def _prepare_batch(self, documents_tokens, labels_tokens ):  # 0 = <blank>
         """
         :input documents_tokens : 2D tensor of shape (batch_size, max_padding_src) with document tokens ids
                     each row starts with 1 (<s> token id) and ends with 2 (</s> token id)
@@ -223,7 +209,7 @@ class Hector() :
         masks = []
 
         for index_document in range(len(documents_tokens)):
-            paths = self._prepare_all_paths(labels_tokens[index_document],task_id) #path_number pairs of (max_padding_tgt,level)
+            paths = self._prepare_all_paths(labels_tokens[index_document]) #path_number pairs of (max_padding_tgt,level)
             for (path,children,mask) in paths : 
                 tgt.append(path)
                 kinder.append(children)
@@ -260,7 +246,7 @@ class Hector() :
 
     
 
-    def _prepare_test_batch(self, documents_tokens, paths, lvl_mask, id_task ):  # 0 = <blank>
+    def _prepare_test_batch(self, documents_tokens, paths, lvl_mask ):  # 0 = <blank>
         """
         :input documents_tokens : 2D tensor of shape (batch_size, max_padding_src) with document tokens ids
                     each row starts with 1 (<s> token id) and ends with 2 (</s> token id)
@@ -324,17 +310,17 @@ class Hector() :
 
     
 
-    def train_on_batch(self, documents_tokens, labels_tokens,task_id):
+    def train_on_batch(self, documents_tokens, labels_tokens):
 
-        src,tgt,  kinder, masks, src_mask, tgt_mask, ntokens = self._prepare_batch(documents_tokens=documents_tokens,labels_tokens=labels_tokens, task_id=task_id)
+        src,tgt,  kinder, masks, src_mask, tgt_mask, ntokens = self._prepare_batch(documents_tokens=documents_tokens,labels_tokens=labels_tokens)
 
-        out = self._forward(src=src, tgt=tgt, src_mask=src_mask, tgt_mask=tgt_mask, child_mask=masks, task_id=task_id)
-        loss, loss_node = self.loss_function(x=out, y=kinder, norm=ntokens,level_mask=masks,task_id=task_id)
+        out = self._forward(src=src, tgt=tgt, src_mask=src_mask, tgt_mask=tgt_mask, child_mask=masks)
+        loss, loss_node = self.loss_function(x=out, y=kinder, norm=ntokens,level_mask=masks)
         loss_node.backward()
 
         self._training_steps+=1 
         if self._training_steps % self._accum_iter == 0 :
-            norm = self._clippy.clip_gradient(self._model, task_id)
+            norm = self._clippy.clip_gradient(self._model)
             self._optimizer.step()
             self._optimizer.zero_grad(set_to_none=True)
             self._lr_scheduler.step()
@@ -348,22 +334,22 @@ class Hector() :
 
 
 
-    def eval_batch(self, documents_tokens, labels_tokens,task_id):
+    def eval_batch(self, documents_tokens, labels_tokens):
 
-        src,tgt,  kinder, masks, src_mask, tgt_mask, ntokens = self._prepare_batch(documents_tokens=documents_tokens,labels_tokens=labels_tokens, task_id=task_id)
+        src,tgt,  kinder, masks, src_mask, tgt_mask, ntokens = self._prepare_batch(documents_tokens=documents_tokens,labels_tokens=labels_tokens)
 
-        out = self._forward(src=src, tgt=tgt, src_mask=src_mask, tgt_mask=tgt_mask, child_mask=masks, task_id=task_id)
-        loss, _ = self.loss_function(x=out, y=kinder, norm=ntokens,level_mask=masks, task_id=task_id)
+        out = self._forward(src=src, tgt=tgt, src_mask=src_mask, tgt_mask=tgt_mask, child_mask=masks)
+        loss, _ = self.loss_function(x=out, y=kinder, norm=ntokens,level_mask=masks)
         prec, mass = self._metric(x=out, y=kinder,x_mask=masks)
 
         return loss, prec, mass
         
         
     
-    def test_batch(self, documents_tokens, paths, lvl_mask, id_task):
-        src,tgt,   masks, src_mask, tgt_mask = self._prepare_test_batch(documents_tokens, paths, lvl_mask, id_task)
+    def test_batch(self, documents_tokens, paths, lvl_mask):
+        src,tgt,   masks, src_mask, tgt_mask = self._prepare_test_batch(documents_tokens, paths, lvl_mask)
 
-        out = self._forward(src=src, tgt=tgt, src_mask=src_mask, tgt_mask=tgt_mask, child_mask=masks, task_id=id_task)
+        out = self._forward(src=src, tgt=tgt, src_mask=src_mask, tgt_mask=tgt_mask, child_mask=masks)
 
         return out
         
@@ -377,15 +363,9 @@ class Hector() :
         self._model.freeze()
 
 
-    def get_generator_weights(self,task_id : int):
-        weight = self._model.get_generator_weights(task_id=task_id)
+    def get_generator_weights(self):
+        weight = self._model.get_generator_weights()
         return weight
-    
-    def get_custom_decoder_weights(self,task_id : int):
-        w = self._model.get_custom_decoder_weights(task_id=task_id)
-        return w
-
-
-
+   
 
 

@@ -22,18 +22,17 @@ class EncoderDecoder(nn.Module):
         super(EncoderDecoder, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.decoders_custom = nn.ModuleList(decoders_custom)
         self.src_embed = src_embed
         self.tgt_embed = tgt_embed
-        self.generators = nn.ModuleList(generators)
+        self.generators = generators
         self.adapter = adapter
 
-    def forward(self, src, tgt, src_mask, tgt_mask, child_mask, task_id):
+    def forward(self, src, tgt, src_mask, tgt_mask, child_mask,**kwargs):
         "Take in and process masked src and target sequences."
         out =  self.encode(src, src_mask)  #src_encoded : bs x max_padding_src x emb_src_dim
         out = self.adapter(out)  # src_transformed : bs x max_padding_src x emb_tgt_dim
-        out = self.decode(out, src_mask, tgt, tgt_mask, task_id)  # tgt_decoded: bs x emb_tgt_dim
-        generator = self.generators[task_id]
+        out = self.decode(out, src_mask, tgt, tgt_mask)  # tgt_decoded: bs x emb_tgt_dim
+        generator = self.generators
         out = generator(out,tgt_mask=tgt_mask, child_mask=child_mask)   # y_pred : bs x len(label_vocab)
         return out
 
@@ -41,11 +40,9 @@ class EncoderDecoder(nn.Module):
         src = self.src_embed(src)
         return self.encoder(src, src_mask)
 
-    def decode(self, memory, src_mask, tgt, tgt_mask, task_id):
+    def decode(self, memory, src_mask, tgt, tgt_mask):
         tgt = self.tgt_embed(tgt)  # bs x #candidates x emb_tgt_dim
         tgt_decoded = self.decoder(tgt, memory, src_mask, tgt_mask)
-        if len(self.decoders_custom)>0 :
-            tgt_decoded = self.decoders_custom[task_id](tgt_decoded, memory, src_mask, tgt_mask)  # bs x #candidates x emb_tgt_dim
         tgt_decoded = tgt_decoded.masked_fill(torch.transpose(tgt_mask, 1, 2) == 0, 0.)  # bs x #candidate x emb_tgt_dim
         return tgt_decoded
 
@@ -55,39 +52,13 @@ class EncoderDecoder(nn.Module):
      
 
     def freeze(self):
-        if 0 & Cf.QUICK_DEBUG :
-            print(" Pre Freeze: listing non-frozen weights")
-            print("====="*20)
-            for name, param in self.named_parameters():
-                if param.requires_grad == True : print(name)
-
-
-        self.encoder.freeze()
-        self.decoder.freeze()
-        self.src_embed[0].freeze()
-        self.tgt_embed.freeze()
-        self.adapter.freeze()
-
-        
-
-        if 0 & Cf.QUICK_DEBUG :
-            print("====="*20)
-            print("====="*20)
-            print("====="*20)
-            print("POst freeze : listing non-frozen weights")
-            for name, param in self.named_parameters():
-                if param.requires_grad == True : print(name)
+        pass
       
 
-    def get_generator_weights(self,task_id : int):
-        generator : Generator= self.generators[task_id]
+    def get_generator_weights(self, **kwargs):
+        generator : Generator= self.generators
         weight  = generator.get_embedding()
         return weight 
-
-    def get_custom_decoder_weights(self,task_id : int):
-        decoder : Decoder = self.decoders_custom[task_id]
-        weights  = decoder.get_weight()
-        return weights
 
         
         
@@ -477,7 +448,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-def make_model(src_vocab, tgt_vocab, N_src, N_tgt, d_src, d_tgt, d_ff, h, dropout, emb_src_init=None, emb_tgt_init=None, lvl_mask=None, n_tasks=1, N_custom_target = 0, with_bias = False):
+def make_model(src_vocab, tgt_vocab, N_src, N_tgt, d_src, d_tgt, d_ff, h, dropout, emb_src_init=None, emb_tgt_init=None, with_bias = False, **kwargs):
     c = copy.deepcopy
     encoder_attn = MultiHeadedAttention(h, d_src)
     encoder_ff = PositionwiseFeedForward(d_src, d_ff, dropout)
@@ -505,20 +476,6 @@ def make_model(src_vocab, tgt_vocab, N_src, N_tgt, d_src, d_tgt, d_ff, h, dropou
         N=N_tgt
     )
 
-    if N_custom_target>0 : 
-        decoders_custom = [ 
-            Decoder(
-            DecoderLayer(
-            size=d_tgt,
-            self_attn=c(decoder_attn),
-            src_attn=c(decoder_attn),
-            feed_forward=c(decoder_ff),
-            dropout=dropout
-            ),
-        N=N_custom_target) for _ in range(n_tasks)
-        ]
-    else :
-        decoders_custom = []
 
     src_embed = Embeddings(
         vocab_size=len(src_vocab),
@@ -536,23 +493,21 @@ def make_model(src_vocab, tgt_vocab, N_src, N_tgt, d_src, d_tgt, d_ff, h, dropou
         need_training=True
     )
 
-    generators =  [ Generator(
+    generator =   Generator(
         d_model=d_tgt,
         vocab_size=len(tgt_vocab),
         with_bias=with_bias
     )
-    for _ in range(n_tasks)
-    ]
+
 
     adapter = Adapter(d_src, d_tgt)
             
     model = EncoderDecoder(
         encoder=encoder,
         decoder=decoder,
-        decoders_custom=decoders_custom,
         src_embed=nn.Sequential(src_embed, c(position)),
         tgt_embed=tgt_embed,
-        generators=generators,
+        generators=generator,
         adapter=adapter) 
         
         
