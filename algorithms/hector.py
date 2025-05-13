@@ -75,8 +75,7 @@ class HectorExp:
         all_precisions_at = {k: [] for k in self.cfg['k_list_eval_perf']}
         total_masses = []
         for input_data, labels, _ in tqdm(self.dataloaders[f"global_{split}"], leave=False):
-            # For hector always set task_id=0 as the whole taxonomy is taken into account
-            loss, precisions, total_mass = self.model.eval_batch(documents_tokens=input_data, labels_tokens=labels, task_id=0)
+            loss, precisions, total_mass = self.model.eval_batch(documents_tokens=input_data, labels_tokens=labels)
             losses.append(loss.cpu().item())
             for k in self.cfg['k_list_eval_perf']:
                 all_precisions_at[k].append(precisions[k])
@@ -113,8 +112,7 @@ class HectorExp:
             all_precisions_at = {k: [] for k in self.cfg['k_list_eval_perf']}
             total_masses = []
             for input_data, labels in zip(batched_input, batched_labels):
-                # For hector always set task_id=0 as the whole taxonomy is taken into account
-                loss, precisions, total_mass = self.model.eval_batch(documents_tokens=input_data, labels_tokens=labels, task_id=0)
+                loss, precisions, total_mass = self.model.eval_batch(documents_tokens=input_data, labels_tokens=labels)
                 losses.append(loss.cpu().item())
                 for k in self.cfg['k_list_eval_perf']:
                     all_precisions_at[k].append(precisions[k])
@@ -165,8 +163,7 @@ class HectorExp:
             self.model.train()
             for input_data, labels, _ in tqdm(self.dataloaders[f"global_{split}"], leave=False):
                 # Train on batch
-                # For hector always set task_id=0 as the whole taxonomy is taken into account
-                loss = self.model.train_on_batch(documents_tokens=input_data, labels_tokens=labels, task_id=0)
+                loss = self.model.train_on_batch(documents_tokens=input_data, labels_tokens=labels)
                 train_losses.append(loss.cpu().item())
                 n_docs_per_batch.append(len(input_data))
 
@@ -221,14 +218,13 @@ class HectorExp:
         # Set model to eval() modifies the behavior of certain layers e.g. dropout, normalization layers
         self.model.eval()
         # Compute predictions
-        # For hector always set task_id=0 as the whole taxonomy is taken into account
-        xml = CustomXMLHolder(text_batch=input_data, task_id=0, beam_parameter=10, hector=self.model, proba_operator="MAX_PROBA")
+        xml = CustomXMLHolder(text_batch=input_data, beam_parameter=10, hector=self.model, proba_operator="MAX_PROBA")
         predictions, scores = xml.run_predictions(batch_size=256)
 
         # Transform predictions and labels into one-hot encoding
         all_predictions = []
         all_complete_labels = []
-        for pred, score, label in zip(tqdm(predictions), scores, labels):
+        for pred, score, label in zip(tqdm(predictions, leave=False), scores, labels):
             assert len(pred) == len(score)
             pred = torch.tensor(pred)
             score = torch.tensor(score)
@@ -311,8 +307,7 @@ class HectorExp:
                     labels.append(label_sample)
 
             # Compute predictions
-            # For hector always set task_id=0 as the whole taxonomy is taken into account
-            xml = CustomXMLHolder(text_batch=input_data, task_id=0, beam_parameter=10, hector=self.model, proba_operator="MAX_PROBA")
+            xml = CustomXMLHolder(text_batch=input_data, beam_parameter=10, hector=self.model, proba_operator="MAX_PROBA")
             predictions, scores = xml.run_predictions(batch_size=256)
 
             # Transform predictions and labels into one-hot encoding
