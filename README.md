@@ -26,17 +26,18 @@ OAXMLC's first use-case is benchmarking extreme multi-label classification (XMLC
 ## Project structure
 The folder structure should look like the displayed one. Especially, make sure to put the dataset files downloaded from Zenodo inside the `datasets` folder as shown.
 
+```bash
 ├── algorithms
 ├── AttentionXML
 ├── configs
    └── base_config.py
 ├── datahandler
 ├── datasets
-   ├── oaxmlc_concepts
+   └── oaxmlc_concepts
         └── documents.json
         └── ontology.json
         └── taxonomy.txt
-   ├── oaxmlc_topics
+   └── oaxmlc_topics
         └── documents.json
         └── ontology.json
         └── taxonomy.txt
@@ -51,6 +52,7 @@ The folder structure should look like the displayed one. Especially, make sure t
 ├── OAXMLC_benchmarking.pdf
 ├── Parabel
 └── README.md
+```
 
 
 ## Config options
